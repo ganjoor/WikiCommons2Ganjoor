@@ -1,10 +1,8 @@
 ﻿
 using HtmlAgilityPack;
-using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
 namespace WikiCommons2Ganjoor
 {
-
 
 
 
@@ -26,26 +24,63 @@ namespace WikiCommons2Ganjoor
             {
                 // Download the page content
                 var html = await _httpClient.GetStringAsync(url);
-                var htmlDocument = new HtmlDocument();
+                var htmlDocument = new HtmlAgilityPack.HtmlDocument();
                 htmlDocument.LoadHtml(html);
 
-                // Try multiple selectors to find image containers
-                var imageContainers = FindImageContainers(htmlDocument);
+                // Find all gallery boxes using multiple possible selectors
+                var galleryBoxes = htmlDocument.DocumentNode.SelectNodes("//div[contains(@class, 'gallerybox')]") ??
+                                 htmlDocument.DocumentNode.SelectNodes("//li[contains(@class, 'gallerybox')]") ??
+                                 htmlDocument.DocumentNode.SelectNodes("//div[contains(@class, 'thumb')]");
 
-                if (imageContainers.Count > 0)
+                if (galleryBoxes != null)
                 {
-                    foreach (var container in imageContainers)
+                    foreach (var box in galleryBoxes)
                     {
-                        var imageInfo = ExtractImageInfo(container);
-                        if (imageInfo != null)
+                        var imageInfo = new ImageInfo();
+
+                        // Extract title from the gallerytext div
+                        var titleNode = box.SelectSingleNode(".//div[@class='gallerytext']") ??
+                                       box.SelectSingleNode(".//div[@class='thumbcaption']");
+                        if (titleNode != null)
+                        {
+                            imageInfo.Title = titleNode.InnerText.Trim();
+                        }
+
+                        // Extract thumbnail URL
+                        var imgNode = box.SelectSingleNode(".//img");
+                        if (imgNode != null)
+                        {
+                            var thumbnailSrc = imgNode.GetAttributeValue("src", "");
+                            if (!string.IsNullOrEmpty(thumbnailSrc))
+                            {
+                                imageInfo.ThumbnailUrl = NormalizeUrl(thumbnailSrc);
+                            }
+                        }
+
+                        // Extract file page link
+                        var fileLink = box.SelectSingleNode(".//a[contains(@class,'image')]") ??
+                                     box.SelectSingleNode(".//a[contains(@href,'/wiki/File:')]");
+                        if (fileLink != null)
+                        {
+                            var filePageUrl = NormalizeUrl(fileLink.GetAttributeValue("href", ""));
+                            if (!string.IsNullOrEmpty(filePageUrl))
+                            {
+                                // Get the direct image URL from the file page
+                                imageInfo.OriginalFileUrl = await GetDirectImageUrl(filePageUrl);
+                            }
+                        }
+
+                        // Fallback: Try to construct from thumbnail if we couldn't get the original
+                        if (string.IsNullOrEmpty(imageInfo.OriginalFileUrl) && !string.IsNullOrEmpty(imageInfo.ThumbnailUrl))
+                        {
+                            imageInfo.OriginalFileUrl = ConstructOriginalFromThumbnail(imageInfo.ThumbnailUrl);
+                        }
+
+                        if (!string.IsNullOrEmpty(imageInfo.Title) && !string.IsNullOrEmpty(imageInfo.OriginalFileUrl))
                         {
                             imageInfos.Add(imageInfo);
                         }
                     }
-                }
-                else
-                {
-                    Console.WriteLine("Warning: No image containers found using any selector");
                 }
             }
             catch (Exception ex)
@@ -56,109 +91,50 @@ namespace WikiCommons2Ganjoor
             return imageInfos;
         }
 
-        private List<HtmlNode> FindImageContainers(HtmlDocument htmlDocument)
+        private async Task<string> GetDirectImageUrl(string filePageUrl)
         {
-            var containers = new List<HtmlNode>();
-
-            // Try different selectors for different Wikimedia Commons page formats
-            var selectors = new[]
+            try
             {
-            "//div[contains(@class, 'gallerybox')]", // Standard gallery
-            "//li[contains(@class, 'gallerybox')]",  // Alternative gallery format
-            "//div[contains(@class, 'thumb')]",     // Thumbnail format
-            "//li[contains(@class, 'thumb')]",      // Alternative thumbnail format
-            "//div[contains(@class, 'image')]"      // Direct image container
-        };
+                var html = await _httpClient.GetStringAsync(filePageUrl);
+                var htmlDocument = new HtmlAgilityPack.HtmlDocument();
+                htmlDocument.LoadHtml(html);
 
-            foreach (var selector in selectors)
-            {
-                var nodes = htmlDocument.DocumentNode.SelectNodes(selector);
-                if (nodes != null)
+                // First try: Look for the "original file" link
+                var directLink = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='fullMedia']//a[@href]");
+                if (directLink != null)
                 {
-                    containers.AddRange(nodes);
-                    if (containers.Count > 0) break; // Stop at first successful selector
-                }
-            }
-
-            return containers;
-        }
-
-        private ImageInfo ExtractImageInfo(HtmlNode container)
-        {
-            var imageInfo = new ImageInfo();
-
-            // Try multiple title extraction methods
-            imageInfo.Title = ExtractTitle(container) ?? "Untitled";
-
-            // Extract image URLs
-            var imgNode = container.SelectSingleNode(".//img");
-            if (imgNode != null)
-            {
-                // Thumbnail URL
-                var thumbnailSrc = imgNode.GetAttributeValue("src", "");
-                if (!string.IsNullOrEmpty(thumbnailSrc))
-                {
-                    imageInfo.ThumbnailUrl = NormalizeUrl(thumbnailSrc);
-                }
-
-                // Original file URL - try multiple approaches
-                imageInfo.OriginalFileUrl = ExtractOriginalUrl(container) ??
-                                          ConstructOriginalFromThumbnail(thumbnailSrc);
-            }
-
-            return string.IsNullOrEmpty(imageInfo.OriginalFileUrl) ? null : imageInfo;
-        }
-
-        private string ExtractTitle(HtmlNode container)
-        {
-            // Try multiple title locations
-            var titleNodes = new[]
-            {
-            container.SelectSingleNode(".//div[@class='gallerytext']"),
-            container.SelectSingleNode(".//div[@class='thumbcaption']"),
-            container.SelectSingleNode(".//figcaption"),
-            container.SelectSingleNode(".//a[@title]")
-        };
-
-            foreach (var node in titleNodes)
-            {
-                if (node != null)
-                {
-                    var title = node.InnerText.Trim();
-                    if (!string.IsNullOrEmpty(title))
-                    {
-                        return title;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private string ExtractOriginalUrl(HtmlNode container)
-        {
-            // Try multiple link locations
-            var linkNodes = new[]
-            {
-            container.SelectSingleNode(".//a[contains(@class,'image')]"),
-            container.SelectSingleNode(".//a[contains(@href,'/wiki/File:')]"),
-            container.SelectSingleNode(".//a[img]")
-        };
-
-            foreach (var node in linkNodes)
-            {
-                if (node != null)
-                {
-                    var href = node.GetAttributeValue("href", "");
+                    var href = directLink.GetAttributeValue("href", "");
                     if (!string.IsNullOrEmpty(href))
                     {
-                        var normalized = NormalizeUrl(href);
-                        if (normalized.Contains("/wiki/File:"))
-                        {
-                            return normalized;
-                        }
+                        return NormalizeUrl(href);
                     }
                 }
+
+                // Second try: Look for the download link
+                var downloadLink = htmlDocument.DocumentNode.SelectSingleNode("//div[@class='mw-download-button']/a[@href]");
+                if (downloadLink != null)
+                {
+                    var href = downloadLink.GetAttributeValue("href", "");
+                    if (!string.IsNullOrEmpty(href))
+                    {
+                        return NormalizeUrl(href);
+                    }
+                }
+
+                // Third try: Look for the og:image meta tag
+                var ogImage = htmlDocument.DocumentNode.SelectSingleNode("//meta[@property='og:image']");
+                if (ogImage != null)
+                {
+                    var content = ogImage.GetAttributeValue("content", "");
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        return NormalizeUrl(content);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting direct image URL from {filePageUrl}: {ex.Message}");
             }
 
             return null;
@@ -200,6 +176,4 @@ namespace WikiCommons2Ganjoor
             return url;
         }
     }
-
-
 }

@@ -13,6 +13,7 @@ namespace WikiCommons2Ganjoor
 
         private async void readWikiToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (MessageBox.Show("Are you sure?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             labelStatus.Text = "Reading ...";
             Application.DoEvents();
             WikimediaCommonsParser parser = new WikimediaCommonsParser();
@@ -36,12 +37,20 @@ namespace WikiCommons2Ganjoor
 
         private async void MainForm_Load(object sender, EventArgs e)
         {
-            if(File.Exists(@"C:\g\commons.json"))
+            if (File.Exists(@"C:\g\commons.json"))
             {
                 ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
                 imageInfos = await infoRepository.ReadAllAsync();
                 dataGridView1.DataSource = imageInfos;
             }
+        }
+
+        private async void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            labelStatus.Text = "Saving ...";
+            ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
+            await infoRepository.WriteAllAsync(imageInfos);
+            labelStatus.Text = "Ready";
         }
     }
 }
