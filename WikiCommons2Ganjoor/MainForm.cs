@@ -18,6 +18,10 @@ namespace WikiCommons2Ganjoor
             WikimediaCommonsParser parser = new WikimediaCommonsParser();
             imageInfos = await parser.ParsePageAsync("https://commons.wikimedia.org/wiki/%D8%B4%D8%A7%D9%87%D9%86%D8%A7%D9%85%D9%87_%D8%AA%D9%87%D9%85%D8%A7%D8%B3%D8%A8%DB%8C");
             dataGridView1.DataSource = imageInfos;
+            labelStatus.Text = "Saving";
+
+            ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
+            await infoRepository.WriteAllAsync(imageInfos);
             labelStatus.Text = "Ready";
         }
 
@@ -28,6 +32,16 @@ namespace WikiCommons2Ganjoor
             p.StartInfo.UseShellExecute = true;
             p.StartInfo.FileName = imageInfos[e.RowIndex].OriginalFileUrl;
             p.Start();
+        }
+
+        private async void MainForm_Load(object sender, EventArgs e)
+        {
+            if(File.Exists(@"C:\g\commons.json"))
+            {
+                ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
+                imageInfos = await infoRepository.ReadAllAsync();
+                dataGridView1.DataSource = imageInfos;
+            }
         }
     }
 }

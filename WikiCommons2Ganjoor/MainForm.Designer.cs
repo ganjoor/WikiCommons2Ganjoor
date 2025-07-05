@@ -93,6 +93,7 @@
             MainMenuStrip = menuStrip1;
             Name = "MainForm";
             Text = "WikiCommons 2 Ganjoor";
+            Load += MainForm_Load;
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
