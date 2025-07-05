@@ -64,6 +64,7 @@
             dataGridView1.RowHeadersWidth = 82;
             dataGridView1.Size = new Size(1542, 702);
             dataGridView1.TabIndex = 1;
+            dataGridView1.RowHeaderMouseDoubleClick += dataGridView1_RowHeaderMouseDoubleClick;
             // 
             // statusStrip1
             // 

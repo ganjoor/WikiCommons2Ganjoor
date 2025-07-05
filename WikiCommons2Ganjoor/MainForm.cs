@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace WikiCommons2Ganjoor
 {
     public partial class MainForm : Form
@@ -17,6 +19,15 @@ namespace WikiCommons2Ganjoor
             imageInfos = await parser.ParsePageAsync("https://commons.wikimedia.org/wiki/%D8%B4%D8%A7%D9%87%D9%86%D8%A7%D9%85%D9%87_%D8%AA%D9%87%D9%85%D8%A7%D8%B3%D8%A8%DB%8C");
             dataGridView1.DataSource = imageInfos;
             labelStatus.Text = "Ready";
+        }
+
+        private void dataGridView1_RowHeaderMouseDoubleClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            Process p = new Process();
+
+            p.StartInfo.UseShellExecute = true;
+            p.StartInfo.FileName = imageInfos[e.RowIndex].OriginalFileUrl;
+            p.Start();
         }
     }
 }
