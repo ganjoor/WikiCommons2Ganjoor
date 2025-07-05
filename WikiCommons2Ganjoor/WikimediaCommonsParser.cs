@@ -32,7 +32,11 @@ namespace WikiCommons2Ganjoor
                 {
                     foreach (var box in galleryBoxes)
                     {
-                        var imageInfo = new ImageInfo();
+                        var imageInfo = new ImageInfo()
+                        {
+                            PageNumber = 0,
+                            Uploaded = false
+                        };
 
                         // Extract title from the gallerytext div
                         var titleNode = box.SelectSingleNode(".//div[@class='gallerytext']");
