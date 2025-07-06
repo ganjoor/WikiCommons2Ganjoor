@@ -99,5 +99,51 @@ namespace WikiCommons2Ganjoor
             Cursor = Cursors.Default;
             DialogResult = DialogResult.OK;
         }
+
+        private async void btnUpdate_Click(object sender, EventArgs e)
+        {
+
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage responseArtifactInfo = await client.GetAsync("https://api.ganjoor.net/api/artifacts/shahname-tahmasb");
+                responseArtifactInfo.EnsureSuccessStatusCode();
+
+
+                JObject jsonResponse = JObject.Parse(await responseArtifactInfo.Content.ReadAsStringAsync());
+
+                // Extract the items array
+                JArray items = (JArray)jsonResponse["items"];
+
+                // Create a list to store the extracted data
+                var artifactImageIds = new List<object>();
+
+                foreach (var item in items)
+                {
+                    // Get the order value
+                    int order = item["order"].Value<int>();
+
+                    // Get the first image id (check if images array exists and has at least one item)
+                    Guid? imageId = null;
+                    if (item["images"] is JArray images && images.Count > 0)
+                    {
+                        imageId = Guid.Parse(images[0]["id"].ToString());
+                    }
+
+                    // Add to our extracted data
+                    artifactImageIds.Add(new
+                    {
+                        Order = order,
+                        FirstImageId = imageId
+                    });
+                }
+
+                // Output the results (or process them as needed)
+                foreach (var data in artifactImageIds)
+                {
+                    Console.WriteLine(JsonConvert.SerializeObject(data, Formatting.Indented));
+                }
+            }
+
+        }
     }
 }

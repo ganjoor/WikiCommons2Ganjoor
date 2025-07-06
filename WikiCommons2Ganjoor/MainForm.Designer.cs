@@ -31,12 +31,13 @@
             menuStrip1 = new MenuStrip();
             readWikiToolStripMenuItem = new ToolStripMenuItem();
             saveToolStripMenuItem = new ToolStripMenuItem();
-            dataGridView1 = new DataGridView();
-            statusStrip1 = new StatusStrip();
-            labelStatus = new ToolStripStatusLabel();
             txtEmail = new ToolStripTextBox();
             txtPassword = new ToolStripTextBox();
             btnLogin = new ToolStripMenuItem();
+            dataGridView1 = new DataGridView();
+            statusStrip1 = new StatusStrip();
+            labelStatus = new ToolStripStatusLabel();
+            btnUpdate = new ToolStripMenuItem();
             menuStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
             statusStrip1.SuspendLayout();
@@ -45,7 +46,7 @@
             // menuStrip1
             // 
             menuStrip1.ImageScalingSize = new Size(32, 32);
-            menuStrip1.Items.AddRange(new ToolStripItem[] { readWikiToolStripMenuItem, saveToolStripMenuItem, txtEmail, txtPassword, btnLogin });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { readWikiToolStripMenuItem, saveToolStripMenuItem, txtEmail, txtPassword, btnLogin, btnUpdate });
             menuStrip1.Location = new Point(0, 0);
             menuStrip1.Name = "menuStrip1";
             menuStrip1.Size = new Size(1542, 43);
@@ -65,6 +66,27 @@
             saveToolStripMenuItem.Size = new Size(137, 39);
             saveToolStripMenuItem.Text = "Save Wiki";
             saveToolStripMenuItem.Click += saveToolStripMenuItem_Click;
+            // 
+            // txtEmail
+            // 
+            txtEmail.Name = "txtEmail";
+            txtEmail.Size = new Size(200, 39);
+            txtEmail.Text = "test@test.com";
+            txtEmail.ToolTipText = "User Email";
+            // 
+            // txtPassword
+            // 
+            txtPassword.Name = "txtPassword";
+            txtPassword.Size = new Size(200, 39);
+            txtPassword.Text = "1234567910";
+            txtPassword.ToolTipText = "Password";
+            // 
+            // btnLogin
+            // 
+            btnLogin.Name = "btnLogin";
+            btnLogin.Size = new Size(93, 39);
+            btnLogin.Text = "Login";
+            btnLogin.Click += btnLogin_Click;
             // 
             // dataGridView1
             // 
@@ -93,26 +115,12 @@
             labelStatus.Size = new Size(78, 32);
             labelStatus.Text = "Ready";
             // 
-            // txtEmail
+            // btnUpdate
             // 
-            txtEmail.Name = "txtEmail";
-            txtEmail.Size = new Size(200, 39);
-            txtEmail.Text = "test@test.com";
-            txtEmail.ToolTipText = "User Email";
-            // 
-            // txtPassword
-            // 
-            txtPassword.Name = "txtPassword";
-            txtPassword.Size = new Size(200, 39);
-            txtPassword.Text = "1234567910";
-            txtPassword.ToolTipText = "Password";
-            // 
-            // btnLogin
-            // 
-            btnLogin.Name = "btnLogin";
-            btnLogin.Size = new Size(93, 39);
-            btnLogin.Text = "Login";
-            btnLogin.Click += btnLogin_Click;
+            btnUpdate.Name = "btnUpdate";
+            btnUpdate.Size = new Size(111, 39);
+            btnUpdate.Text = "Update";
+            btnUpdate.Click += btnUpdate_Click;
             // 
             // MainForm
             // 
@@ -146,5 +154,6 @@
         private ToolStripTextBox txtEmail;
         private ToolStripTextBox txtPassword;
         private ToolStripMenuItem btnLogin;
+        private ToolStripMenuItem btnUpdate;
     }
 }
