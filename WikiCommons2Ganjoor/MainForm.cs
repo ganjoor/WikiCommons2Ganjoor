@@ -1,7 +1,10 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http;
 using System.Text;
 
 namespace WikiCommons2Ganjoor
@@ -100,49 +103,105 @@ namespace WikiCommons2Ganjoor
             DialogResult = DialogResult.OK;
         }
 
-        private async void btnUpdate_Click(object sender, EventArgs e)
+        public async Task<string> ReplaceImageAsync(Guid imageId, Stream fileStream, string fileName)
         {
-
             using (HttpClient client = new HttpClient())
             {
-                HttpResponseMessage responseArtifactInfo = await client.GetAsync("https://api.ganjoor.net/api/artifacts/shahname-tahmasb");
-                responseArtifactInfo.EnsureSuccessStatusCode();
+                // Set the base address if not already set
+                client.BaseAddress = new Uri("https://api.ganjoor.net/");
+                client.Timeout = TimeSpan.FromSeconds(3600);
 
+                // Add authorization header
+                client.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", Properties.Settings.Default.MuseumToken);
 
-                JObject jsonResponse = JObject.Parse(await responseArtifactInfo.Content.ReadAsStringAsync());
+                // Create multipart form data content
+                using var formContent = new MultipartFormDataContent();
 
-                // Extract the items array
-                JArray items = (JArray)jsonResponse["items"];
+                // Add the file stream as content
+                var fileContent = new StreamContent(fileStream);
+                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
+                formContent.Add(fileContent, "file", fileName);
 
-                // Create a list to store the extracted data
-                var artifactImageIds = new List<object>();
+                // Make the PUT request
+                var response = await client.PutAsync($"api/images/replace/{imageId}", formContent);
 
-                foreach (var item in items)
+                // Ensure success status code
+                response.EnsureSuccessStatusCode();
+
+                // Read and return the response content
+                return await response.Content.ReadAsStringAsync();
+            }
+        }
+
+        class ArtifactImage
+        {
+            public int Order { get; set; }
+            public Guid FirstImageId { get; set; }
+        }
+
+        private async void btnUpdate_Click(object sender, EventArgs e)
+        {
+            
+            if (imageInfos.Any(i => i.PageNumber != 0 && i.Uploaded == false))
+            {
+                using (HttpClient client = new HttpClient())
                 {
-                    // Get the order value
-                    int order = item["order"].Value<int>();
+                    client.DefaultRequestHeaders.Add("User-Agent", "Ganjoor Wikimedia Commons downloader (https://ganjoor.net; ganjoor@ganjoor.net)");
+                    labelStatus.Text = "Reaing artifact info ...";
+                    Application.DoEvents();
+                    HttpResponseMessage responseArtifactInfo = await client.GetAsync("https://api.ganjoor.net/api/artifacts/shahname-tahmasb");
+                    responseArtifactInfo.EnsureSuccessStatusCode();
 
-                    // Get the first image id (check if images array exists and has at least one item)
-                    Guid? imageId = null;
-                    if (item["images"] is JArray images && images.Count > 0)
+
+                    JObject jsonResponse = JObject.Parse(await responseArtifactInfo.Content.ReadAsStringAsync());
+
+                    // Extract the items array
+                    JArray items = (JArray)jsonResponse["items"];
+
+                    // Create a list to store the extracted data
+                    var artifactImageIds = new List<ArtifactImage>();
+
+                    foreach (var item in items)
                     {
-                        imageId = Guid.Parse(images[0]["id"].ToString());
+                        // Get the order value
+                        int order = item["order"].Value<int>();
+
+                        // Get the first image id (check if images array exists and has at least one item)
+                        Guid? imageId = null;
+                        if (item["images"] is JArray images && images.Count > 0)
+                        {
+                            imageId = Guid.Parse(images[0]["id"].ToString());
+                        }
+
+                        // Add to our extracted data
+                        artifactImageIds.Add(new ArtifactImage()
+                        {
+                            Order = order,
+                            FirstImageId = (Guid)imageId
+                        });
                     }
 
-                    // Add to our extracted data
-                    artifactImageIds.Add(new
+                    foreach (var item in imageInfos.Where(i => i.PageNumber != 0 && i.Uploaded == false))
                     {
-                        Order = order,
-                        FirstImageId = imageId
-                    });
-                }
+                        labelStatus.Text = $"Updating page number {item.PageNumber}";
+                        Application.DoEvents();
 
-                // Output the results (or process them as needed)
-                foreach (var data in artifactImageIds)
-                {
-                    Console.WriteLine(JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                        var imageResult = await client.GetAsync(item.OriginalFileUrl);
+                        imageResult.EnsureSuccessStatusCode();
+                        using (Stream imageStream = await imageResult.Content.ReadAsStreamAsync())
+                        {
+                            imageStream.Seek(0, SeekOrigin.Begin);
+                            var artifactItem = artifactImageIds.Where(i => i.Order == item.PageNumber).Single();
+                            await ReplaceImageAsync(artifactItem.FirstImageId, imageStream, item.PageNumber.ToString() + ".jpg");
+                            item.Uploaded = true;
+                        }
+                    }
                 }
             }
+
+            labelStatus.Text = "Ready";
 
         }
     }
