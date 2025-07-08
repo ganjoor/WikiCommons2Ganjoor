@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Text;
+using System.Security.Cryptography;
 
 namespace WikiCommons2Ganjoor
 {
@@ -120,7 +121,7 @@ namespace WikiCommons2Ganjoor
 
                 // Add the file stream as content
                 var fileContent = new StreamContent(fileStream);
-                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
+                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
                 formContent.Add(fileContent, "file", fileName);
 
                 // Make the PUT request
@@ -138,6 +139,7 @@ namespace WikiCommons2Ganjoor
         {
             public int Order { get; set; }
             public Guid FirstImageId { get; set; }
+            public string ExternalOriginalSizeImageUrl { get; set; }
         }
 
         private async void btnUpdate_Click(object sender, EventArgs e)
@@ -169,16 +171,19 @@ namespace WikiCommons2Ganjoor
 
                         // Get the first image id (check if images array exists and has at least one item)
                         Guid? imageId = null;
+                        string externalNormalSizeImageUrl = "";
                         if (item["images"] is JArray images && images.Count > 0)
                         {
                             imageId = Guid.Parse(images[0]["id"].ToString());
+                            externalNormalSizeImageUrl = images[0]["externalNormalSizeImageUrl"].ToString();
                         }
 
                         // Add to our extracted data
                         artifactImageIds.Add(new ArtifactImage()
                         {
                             Order = order,
-                            FirstImageId = (Guid)imageId
+                            FirstImageId = (Guid)imageId,
+                            ExternalOriginalSizeImageUrl = externalNormalSizeImageUrl.Replace("norm", "orig")
                         });
                     }
 
@@ -190,12 +195,36 @@ namespace WikiCommons2Ganjoor
 
                         var imageResult = await client.GetAsync(item.OriginalFileUrl);
                         imageResult.EnsureSuccessStatusCode();
+                        string commonMD5;
                         using (Stream imageStream = await imageResult.Content.ReadAsStreamAsync())
                         {
                             imageStream.Seek(0, SeekOrigin.Begin);
+                            using (var md5 = MD5.Create())
+                            {
+                                commonMD5 = string.Join("", md5.ComputeHash(imageStream).Select(x => x.ToString("X2")));
+                            }
                             var artifactItem = artifactImageIds.Where(i => i.Order == item.PageNumber).Single();
+                            imageStream.Seek(0, SeekOrigin.Begin);
                             await ReplaceImageAsync(artifactItem.FirstImageId, imageStream, item.PageNumber.ToString() + ".jpg");
-                            item.Uploaded = true;
+
+
+                            var uploadedImageResult = await client.GetAsync(artifactItem.ExternalOriginalSizeImageUrl);
+                            uploadedImageResult.EnsureSuccessStatusCode();
+                            using (Stream uploadedImageStream = await uploadedImageResult.Content.ReadAsStreamAsync())
+                            {
+                                using (var md5 = MD5.Create())
+                                {
+                                    string uploadedMD5 = string.Join("", md5.ComputeHash(uploadedImageStream).Select(x => x.ToString("X2")));
+                                    if (commonMD5 == uploadedMD5)
+                                    {
+                                        item.Uploaded = true;
+                                        labelStatus.Text = "Saving ...";
+                                        ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
+                                        await infoRepository.WriteAllAsync(imageInfos);
+                                        labelStatus.Text = "Ready";
+                                    }
+                                }
+                            }
                         }
                     }
                 }
