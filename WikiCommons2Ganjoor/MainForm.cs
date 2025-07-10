@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.IO;
@@ -7,6 +7,8 @@ using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Text;
 using System.Security.Cryptography;
+using DNTPersianUtils.Core;
+using System.Reflection;
 
 namespace WikiCommons2Ganjoor
 {
@@ -104,7 +106,7 @@ namespace WikiCommons2Ganjoor
             DialogResult = DialogResult.OK;
         }
 
-        public async Task<string> ReplaceImageAsync(Guid imageId, Stream fileStream, string fileName)
+        public async Task<string> ReplaceImageAsync(Guid imageId, Stream fileStream, string fileName, RArtifactItemRecord item, string name)
         {
             using (HttpClient client = new HttpClient())
             {
@@ -115,6 +117,12 @@ namespace WikiCommons2Ganjoor
                 // Add authorization header
                 client.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", Properties.Settings.Default.MuseumToken);
+
+                item.Name = $"تصویر {item.Order.ToPersianNumbers()} - {name}";
+                var responseUpdate = await client.PutAsync($"api/artifacts/item", new StringContent(JsonConvert.SerializeObject(item), Encoding.UTF8, "application/json"));
+                // Ensure success status code
+                responseUpdate.EnsureSuccessStatusCode();
+
 
                 // Create multipart form data content
                 using var formContent = new MultipartFormDataContent();
@@ -161,8 +169,10 @@ namespace WikiCommons2Ganjoor
                     // Extract the items array
                     JArray items = (JArray)jsonResponse["items"];
 
-                    // Create a list to store the extracted data
-                    var artifactImageIds = new List<ArtifactImage>();
+                    RArtifactItemRecord[] updatables = JsonConvert.DeserializeObject<RArtifactItemRecord[]>(jsonResponse["items"].ToString());
+
+                   // Create a list to store the extracted data
+                   var artifactImageIds = new List<ArtifactImage>();
 
                     foreach (var item in items)
                     {
@@ -204,9 +214,9 @@ namespace WikiCommons2Ganjoor
                                 commonMD5 = string.Join("", md5.ComputeHash(imageStream).Select(x => x.ToString("X2")));
                             }
                             var artifactItem = artifactImageIds.Where(i => i.Order == item.PageNumber).Single();
+                            var updatable = updatables.Where(i => i.Order == item.PageNumber).Single();
                             imageStream.Seek(0, SeekOrigin.Begin);
-                            await ReplaceImageAsync(artifactItem.FirstImageId, imageStream, item.PageNumber.ToString() + ".jpg");
-
+                            await ReplaceImageAsync(artifactItem.FirstImageId, imageStream, item.PageNumber.ToString() + ".jpg", updatable, item.Title);
 
                             var uploadedImageResult = await client.GetAsync(artifactItem.ExternalOriginalSizeImageUrl);
                             uploadedImageResult.EnsureSuccessStatusCode();
@@ -221,6 +231,8 @@ namespace WikiCommons2Ganjoor
                                         labelStatus.Text = "Saving ...";
                                         ImageInfoRepository infoRepository = new ImageInfoRepository(@"C:\g\commons.json");
                                         await infoRepository.WriteAllAsync(imageInfos);
+
+
                                         labelStatus.Text = "Ready";
                                     }
                                 }
