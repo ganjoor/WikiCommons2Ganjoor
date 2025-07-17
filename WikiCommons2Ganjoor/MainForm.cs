@@ -118,10 +118,32 @@ namespace WikiCommons2Ganjoor
                 client.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", Properties.Settings.Default.MuseumToken);
 
-                item.Name = $"تصویر {item.Order.ToPersianNumbers()} - {name}";
-                var responseUpdate = await client.PutAsync($"api/artifacts/item", new StringContent(JsonConvert.SerializeObject(item), Encoding.UTF8, "application/json"));
-                // Ensure success status code
-                responseUpdate.EnsureSuccessStatusCode();
+
+
+                var responseAddTag = await client.PostAsync($"api/artifacts/itemtagvalue/{item.Id}", 
+                    new StringContent(JsonConvert.SerializeObject
+                    (
+                        new RTag()
+                        {
+                            Id = Guid.Parse("195318c0-3b1d-4ddc-981e-08d7432f54d5")
+                        }
+                    ), Encoding.UTF8, "application/json"));
+                if (!responseAddTag.IsSuccessStatusCode)
+                {
+                    MessageBox.Show(await responseAddTag.Content.ReadAsStringAsync());
+                }
+                responseAddTag.EnsureSuccessStatusCode();
+                var tagValue = JsonConvert.DeserializeObject<RTagValue>(await responseAddTag.Content.ReadAsStringAsync());
+                tagValue.Value = name;
+                tagValue.ValueInEnglish = name;
+
+                var responseUpdateTagValue = await client.PutAsync($"api/artifacts/itemtagvalue/{item.Id}/false", 
+                    new StringContent(JsonConvert.SerializeObject
+                    (
+                        tagValue
+                    ), Encoding.UTF8, "application/json"));
+                responseUpdateTagValue.EnsureSuccessStatusCode();
+
 
 
                 // Create multipart form data content
